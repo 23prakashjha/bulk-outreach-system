@@ -26,6 +26,9 @@ const authRoutes = require('./routes/auth');
 // Import JustdialHistory model
 const JustdialHistory = require('./models/JustdialHistory');
 
+// Import GoogleMapsHistory model
+const GoogleMapsHistory = require('./models/GoogleMapsHistory');
+
 // Add proxy rotation and user agent management for Justdial Scraper
 class JustdialProxyRotator {
   constructor() {
@@ -4655,10 +4658,46 @@ app.post('/api/google-maps-scrape', async (req, res) => {
     const results = await scrapeAllData(page);
 
     await browser.close();
+    
+    // Save to history
+    try {
+      const historyEntry = new GoogleMapsHistory({
+        url,
+        businessCount: results.length,
+        data: results,
+        status: 'completed',
+        scrapeDate: new Date()
+      });
+      
+      await historyEntry.save();
+      console.log('Google Maps results saved to history');
+    } catch (historyError) {
+      console.error('Failed to save Google Maps results to history:', historyError);
+      // Don't fail the request if history saving fails
+    }
+    
     res.json({ success: true, data: results, count: results.length });
   } catch (error) {
     if (browser) await browser.close();
     console.error('Google Maps scraping error:', error);
+    
+    // Save failed attempt to history
+    try {
+      const historyEntry = new GoogleMapsHistory({
+        url,
+        businessCount: 0,
+        data: [],
+        status: 'failed',
+        errorMessage: error.message,
+        scrapeDate: new Date()
+      });
+      
+      await historyEntry.save();
+      console.log('Google Maps failed attempt saved to history');
+    } catch (historyError) {
+      console.error('Failed to save Google Maps failed attempt to history:', historyError);
+    }
+    
     res.status(500).json({ error: 'Scraping failed: ' + error.message });
   }
 });
@@ -4666,11 +4705,14 @@ app.post('/api/google-maps-scrape', async (req, res) => {
 // Google Maps history endpoints
 app.get('/api/google-maps-history', async (req, res) => {
   try {
-    // For now, return empty history - you can implement database storage later
+    const { limit = 10 } = req.query;
+    const history = await GoogleMapsHistory.find()
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+    
     res.json({ 
       success: true, 
-      history: [],
-      message: 'Google Maps history feature coming soon'
+      history
     });
   } catch (error) {
     console.error('Google Maps history error:', error);
@@ -4680,14 +4722,52 @@ app.get('/api/google-maps-history', async (req, res) => {
 
 app.delete('/api/google-maps-history/:id', async (req, res) => {
   try {
-    // For now, just return success - you can implement database storage later
+    const { id } = req.params;
+    
+    const deletedHistory = await GoogleMapsHistory.findByIdAndDelete(id);
+    
+    if (!deletedHistory) {
+      return res.status(404).json({ error: 'History entry not found' });
+    }
+    
     res.json({ 
       success: true, 
-      message: 'Google Maps history deletion feature coming soon'
+      message: 'History entry deleted successfully'
     });
   } catch (error) {
     console.error('Google Maps history deletion error:', error);
     res.status(500).json({ error: 'Failed to delete history entry' });
+  }
+});
+
+// POST endpoint to save Google Maps history
+app.post('/api/google-maps-history', async (req, res) => {
+  try {
+    const { url, businessCount, data, status = 'completed', errorMessage } = req.body;
+    
+    if (!url || !businessCount || !data) {
+      return res.status(400).json({ error: 'Missing required fields: url, businessCount, data' });
+    }
+    
+    const historyEntry = new GoogleMapsHistory({
+      url,
+      businessCount,
+      data,
+      status,
+      errorMessage,
+      scrapeDate: new Date()
+    });
+    
+    await historyEntry.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'History entry saved successfully',
+      historyEntry
+    });
+  } catch (error) {
+    console.error('Google Maps history save error:', error);
+    res.status(500).json({ error: 'Failed to save history entry' });
   }
 });
 
