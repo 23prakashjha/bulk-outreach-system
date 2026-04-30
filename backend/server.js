@@ -19,6 +19,9 @@ const EmailService = require('./services/emailService');
 const WhatsAppService = require('./services/whatsappService');
 const SMSService = require('./services/smsService');
 
+// Import authentication routes
+const authRoutes = require('./routes/auth');
+
 // Add proxy rotation and user agent management for Justdial Scraper
 class JustdialProxyRotator {
   constructor() {
@@ -1238,6 +1241,7 @@ const proxyRotator = new ProxyRotator();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+
 // Middleware
 app.use(helmet());
 app.use(cors({
@@ -1304,6 +1308,9 @@ app.use('/api/scrape', (req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Authentication routes
+app.use('/api/auth', authRoutes);
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bulk-outreach')

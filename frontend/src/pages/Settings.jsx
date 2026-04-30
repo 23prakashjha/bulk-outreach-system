@@ -1,25 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import { Building, User, Mail, Settings as SettingsIcon, Shield, CheckCircle, Edit2, Save, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const Settings = () => {
+  const { user } = useAuth();
+  
   const [settings, setSettings] = useState({
-    companyName: 'Bulk Outreach System',
-    email: 'admin@bulkoutreach.com',
+    companyName: user?.companyName || '',
+    adminName: user?.username || '',
+    adminEmail: user?.email || '',
     defaultCommunicationType: 'all',
     autoSendFollowUp: false,
     followUpDelay: 3,
     maxRetries: 3,
-    apiKeyMasked: '••••••••••••••••••••••••••••••••'
+    apiKeyMasked: '···································'
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [editMode, setEditMode] = useState({
+    companyName: false,
+    adminName: false,
+    adminEmail: false
+  });
+  const [tempValues, setTempValues] = useState({});
+
+  // Update settings when user data changes
+  useEffect(() => {
+    if (user) {
+      setSettings(prev => ({
+        ...prev,
+        companyName: user.companyName || '',
+        adminName: user.username || '',
+        adminEmail: user.email || ''
+      }));
+    }
+  }, [user]);
 
   const handleInputChange = (field, value) => {
     setSettings(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleEdit = (field) => {
+    setEditMode(prev => ({ ...prev, [field]: true }));
+    setTempValues(prev => ({ ...prev, [field]: settings[field] }));
+  };
+
+  const handleSaveField = (field) => {
+    setSettings(prev => ({ ...prev, [field]: tempValues[field] }));
+    setEditMode(prev => ({ ...prev, [field]: false }));
+    toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')} updated successfully!`);
+  };
+
+  const handleCancelEdit = (field) => {
+    setEditMode(prev => ({ ...prev, [field]: false }));
+    setTempValues(prev => ({ ...prev, [field]: settings[field] }));
+  };
+
+  const handleTempChange = (field, value) => {
+    setTempValues(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
@@ -38,47 +81,171 @@ const Settings = () => {
   return (
     <div className="space-y-6">
       <Toaster position="top-right" />
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Configure your outreach system and API settings.</p>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 text-white">
+        <div className="flex items-center gap-3 mb-4">
+          <SettingsIcon className="h-8 w-8" />
+          <h1 className="text-3xl font-bold">Settings</h1>
+        </div>
+        <p className="text-blue-100">Manage your system configuration and administrative information.</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-6 text-gray-800">General Settings</h2>
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <div className="flex items-center gap-2 mb-6">
+          <Shield className="h-6 w-6 text-blue-600" />
+          <h2 className="text-xl font-semibold text-gray-800">General Information</h2>
+        </div>
         
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company Name
-            </label>
-            <input
-              type="text"
-              value={settings.companyName}
-              onChange={(e) => handleInputChange('companyName', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+        <div className="space-y-6">
+          {/* Company Name */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Building className="h-5 w-5 text-blue-600" />
+                <label className="text-sm font-semibold text-gray-700">
+                  Company Name
+                </label>
+              </div>
+              {!editMode.companyName && (
+                <button
+                  onClick={() => handleEdit('companyName')}
+                  className="text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {editMode.companyName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tempValues.companyName || settings.companyName}
+                  onChange={(e) => handleTempChange('companyName', e.target.value)}
+                  className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={() => handleSaveField('companyName')}
+                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleCancelEdit('companyName')}
+                  className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium text-gray-900">{settings.companyName}</p>
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Admin Email
-            </label>
-            <input
-              type="email"
-              value={settings.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          {/* Admin Name */}
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-purple-600" />
+                <label className="text-sm font-semibold text-gray-700">
+                  Administrator Name
+                </label>
+              </div>
+              {!editMode.adminName && (
+                <button
+                  onClick={() => handleEdit('adminName')}
+                  className="text-purple-600 hover:text-purple-800 transition-colors"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {editMode.adminName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tempValues.adminName || settings.adminName}
+                  onChange={(e) => handleTempChange('adminName', e.target.value)}
+                  className="flex-1 px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={() => handleSaveField('adminName')}
+                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleCancelEdit('adminName')}
+                  className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium text-gray-900">{settings.adminName}</p>
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          {/* Admin Email */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-green-600" />
+                <label className="text-sm font-semibold text-gray-700">
+                  Administrator Email
+                </label>
+              </div>
+              {!editMode.adminEmail && (
+                <button
+                  onClick={() => handleEdit('adminEmail')}
+                  className="text-green-600 hover:text-green-800 transition-colors"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {editMode.adminEmail ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={tempValues.adminEmail || settings.adminEmail}
+                  onChange={(e) => handleTempChange('adminEmail', e.target.value)}
+                  className="flex-1 px-3 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  onClick={() => handleSaveField('adminEmail')}
+                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleCancelEdit('adminEmail')}
+                  className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium text-gray-900">{settings.adminEmail}</p>
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+            )}
+          </div>
+
+          {/* Default Communication Type */}
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
               Default Communication Type
             </label>
             <select
               value={settings.defaultCommunicationType}
               onChange={(e) => handleInputChange('defaultCommunicationType', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
               <option value="all">All Channels</option>
               <option value="email">Email Only</option>

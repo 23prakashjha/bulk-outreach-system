@@ -1,13 +1,51 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
 
 const Layout = ({ children, isNavigating }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Debug log for sidebar state changes
   React.useEffect(() => {
     console.log('Sidebar state changed:', isSidebarOpen);
   }, [isSidebarOpen]);
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      const publicRoutes = ['/login', '/signup'];
+      if (!publicRoutes.includes(location.pathname)) {
+        navigate('/login');
+      }
+    }
+  }, [isAuthenticated, loading, location.pathname, navigate]);
+
+  // Don't render layout for public routes
+  const publicRoutes = ['/login', '/signup'];
+  if (publicRoutes.includes(location.pathname)) {
+    return children;
+  }
+
+  // Show loading spinner while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render layout if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
