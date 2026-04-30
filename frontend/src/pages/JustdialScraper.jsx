@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { Search, Download, FileSpreadsheet, FileText, Loader2, Building, Phone, MapPin, Star, Globe, ChevronRight, Eye, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Search, Download, FileSpreadsheet, FileText, Loader2, Building, Phone, MapPin, Star, Globe, ChevronRight, Eye, ChevronLeft, ChevronRight as ChevronRightIcon, Clock, Trash2, RefreshCw } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 
@@ -21,6 +21,11 @@ function JustdialScraper() {
     page: 0,
     status: 'idle'
   });
+
+  // History state
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
 
   // Handle search term change for filtering results
@@ -177,8 +182,12 @@ function JustdialScraper() {
 
       if (response.data.success) {
         const businessCount = response.data.count;
-        setData(response.data.data);
+        const scrapedData = response.data.data;
+        setData(scrapedData);
         setScraped(true);
+        
+        // Save to history
+        await saveToHistory(scrapedData, 'single');
         
         // Show enhanced success message with deduplication info
         if (businessCount >= 100) {
@@ -288,9 +297,13 @@ function JustdialScraper() {
                   
                   if (data.success) {
                     const businessCount = data.count;
-                    setData(data.data);
+                    const scrapedData = data.data;
+                    setData(scrapedData);
                     setScraped(true);
                     setItemsPerPage(40); // Set to 40 for bulk results
+                    
+                    // Save to history
+                    await saveToHistory(scrapedData, 'bulk');
                     
                     // Show enhanced success message for bulk scraping
                     if (businessCount >= 100) {
@@ -429,6 +442,98 @@ function JustdialScraper() {
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1);
   }, []);
+
+  // History management functions
+  const fetchHistory = useCallback(async () => {
+    try {
+      setHistoryLoading(true);
+      const response = await axios.get('/api/justdial-history?limit=10');
+      if (response.data.success) {
+        setHistory(response.data.history);
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      toast.error('Failed to fetch scraping history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const saveToHistory = async (scrapeData, scrapeType = 'single') => {
+    try {
+      const city = scrapeData.length > 0 ? scrapeData[0].city || extractCityFromUrl(url) : '';
+      
+      const historyData = {
+        url,
+        category: detectedCategory,
+        city,
+        businessCount: scrapeData.length,
+        businesses: scrapeData,
+        scrapeType,
+        status: 'completed'
+      };
+
+      await axios.post('/api/justdial-history', historyData);
+      
+      // Refresh history after saving
+      if (showHistory) {
+        fetchHistory();
+      }
+    } catch (error) {
+      console.error('Error saving to history:', error);
+      // Don't show toast error for history saving as it's not critical
+    }
+  };
+
+  const deleteHistoryItem = async (id) => {
+    try {
+      await axios.delete(`/api/justdial-history/${id}`);
+      toast.success('History item deleted successfully');
+      fetchHistory();
+    } catch (error) {
+      console.error('Error deleting history item:', error);
+      toast.error('Failed to delete history item');
+    }
+  };
+
+  const loadHistoryItem = async (historyItem) => {
+    try {
+      setData(historyItem.businesses);
+      setScraped(true);
+      setUrl(historyItem.url);
+      setDetectedCategory(historyItem.category);
+      setCurrentPage(1);
+      setItemsPerPage(40);
+      toast.success(`Loaded ${historyItem.businessCount} businesses from history`);
+    } catch (error) {
+      console.error('Error loading history item:', error);
+      toast.error('Failed to load history item');
+    }
+  };
+
+  const extractCityFromUrl = (urlString) => {
+    if (!urlString || !urlString.includes('justdial.com')) {
+      return '';
+    }
+    try {
+      const url = new URL(urlString);
+      const pathname = url.pathname;
+      const pathParts = pathname.split('/').filter(part => part.length > 0);
+      if (pathParts.length >= 1) {
+        return pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1);
+      }
+    } catch (error) {
+      console.error('Error extracting city from URL:', error);
+    }
+    return '';
+  };
+
+  // Fetch history on component mount
+  useEffect(() => {
+    if (showHistory) {
+      fetchHistory();
+    }
+  }, [showHistory, fetchHistory]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -639,6 +744,109 @@ function JustdialScraper() {
           </div>
         </div>
       )}
+
+      {/* Scraping History */}
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-6 border border-white/50 overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-purple-600" />
+            Scraping History
+          </h2>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700 rounded-xl hover:from-purple-100 hover:to-indigo-100 flex items-center border border-purple-200 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              {showHistory ? 'Hide History' : 'Show History'}
+            </button>
+            <button
+              onClick={fetchHistory}
+              disabled={historyLoading}
+              className="px-4 py-2 bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700 rounded-xl hover:from-blue-100 hover:to-cyan-100 flex items-center border border-blue-200 transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${historyLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {showHistory && (
+          <>
+            {historyLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center space-x-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                  <span className="text-gray-600">Loading history...</span>
+                </div>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No scraping history found</p>
+                <p className="text-sm text-gray-400 mt-1">Your scraping results will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {history.map((item) => (
+                  <div key={item._id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 hover:shadow-md transition-all duration-200">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            item.scrapeType === 'bulk' 
+                              ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200' 
+                              : 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border border-blue-200'
+                          }`}>
+                            {item.scrapeType === 'bulk' ? 'Bulk' : 'Single'}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {item.businessCount} businesses
+                          </span>
+                          {item.category && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border border-purple-200">
+                              {item.category}
+                            </span>
+                          )}
+                          {item.city && (
+                            <span className="text-sm text-gray-500">
+                              📍 {item.city}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-1">
+                          <span className="font-medium">URL:</span> 
+                          <span className="ml-2 text-blue-600 hover:text-blue-800 cursor-pointer truncate inline-block max-w-md" title={item.url}>
+                            {item.url}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <button
+                          onClick={() => loadHistoryItem(item)}
+                          className="p-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 rounded-lg hover:from-blue-100 hover:to-indigo-100 border border-blue-200 transition-all duration-200"
+                          title="Load this data"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteHistoryItem(item._id)}
+                          className="p-2 bg-gradient-to-r from-red-50 to-pink-50 text-red-700 rounded-lg hover:from-red-100 hover:to-pink-100 border border-red-200 transition-all duration-200"
+                          title="Delete from history"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Results Section */}
       {scraped && data.length > 0 && (

@@ -23,6 +23,9 @@ const SMSService = require('./services/smsService');
 // Import authentication routes
 const authRoutes = require('./routes/auth');
 
+// Import JustdialHistory model
+const JustdialHistory = require('./models/JustdialHistory');
+
 // Add proxy rotation and user agent management for Justdial Scraper
 class JustdialProxyRotator {
   constructor() {
@@ -4357,6 +4360,120 @@ app.post('/api/justdial-export/csv', async (req, res) => {
   } catch (error) {
     console.error('Justdial CSV export error:', error);
     res.status(500).json({ error: 'Failed to export Justdial CSV file' });
+  }
+});
+
+// Justdial History API Routes
+
+// Save scraping history
+app.post('/api/justdial-history', async (req, res) => {
+  try {
+    const { url, category, city, businessCount, businesses, scrapeType, status, errorMessage } = req.body;
+    
+    if (!url || !businessCount || !businesses) {
+      return res.status(400).json({ error: 'URL, business count, and businesses data are required' });
+    }
+    
+    const historyEntry = new JustdialHistory({
+      url,
+      category: category || '',
+      city: city || '',
+      businessCount,
+      businesses,
+      scrapeType: scrapeType || 'single',
+      status: status || 'completed',
+      errorMessage: errorMessage || ''
+    });
+    
+    await historyEntry.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Scraping history saved successfully',
+      history: historyEntry
+    });
+  } catch (error) {
+    console.error('Error saving Justdial history:', error);
+    res.status(500).json({ error: 'Failed to save scraping history' });
+  }
+});
+
+// Get scraping history
+app.get('/api/justdial-history', async (req, res) => {
+  try {
+    const { page = 1, limit = 10, category, city } = req.query;
+    
+    const query = {};
+    if (category) query.category = new RegExp(category, 'i');
+    if (city) query.city = new RegExp(city, 'i');
+    
+    const options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sort: { createdAt: -1 }
+    };
+    
+    const history = await JustdialHistory.find(query)
+      .sort(options.sort)
+      .limit(options.limit * options.page)
+      .skip((options.page - 1) * options.limit);
+    
+    const total = await JustdialHistory.countDocuments(query);
+    
+    res.json({
+      success: true,
+      history,
+      pagination: {
+        current: options.page,
+        pages: Math.ceil(total / options.limit),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching Justdial history:', error);
+    res.status(500).json({ error: 'Failed to fetch scraping history' });
+  }
+});
+
+// Get specific history entry by ID
+app.get('/api/justdial-history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const historyEntry = await JustdialHistory.findById(id);
+    
+    if (!historyEntry) {
+      return res.status(404).json({ error: 'History entry not found' });
+    }
+    
+    res.json({
+      success: true,
+      history: historyEntry
+    });
+  } catch (error) {
+    console.error('Error fetching Justdial history entry:', error);
+    res.status(500).json({ error: 'Failed to fetch history entry' });
+  }
+});
+
+// Delete history entry
+app.delete('/api/justdial-history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const deletedEntry = await JustdialHistory.findByIdAndDelete(id);
+    
+    if (!deletedEntry) {
+      return res.status(404).json({ error: 'History entry not found' });
+    }
+    
+    res.json({
+      success: true,
+      message: 'History entry deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting Justdial history entry:', error);
+    res.status(500).json({ error: 'Failed to delete history entry' });
   }
 });
 
