@@ -29,6 +29,7 @@ const Dashboard = () => {
     search: ''
   });
   const [customCities, setCustomCities] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
 
   // Handle manual filter changes
   const handleManualFiltersChange = (filters) => {
@@ -57,24 +58,9 @@ const Dashboard = () => {
     setPagination(prev => ({ ...prev, currentPage: newPage }));
   };
 
-  // Extract unique categories from companies data
+  // Get unique categories from API data
   const getUniqueCategories = () => {
-    const categories = new Set();
-    companies.forEach(company => {
-      if (company.detectedCategory && company.detectedCategory.category) {
-        categories.add(company.detectedCategory.category);
-      }
-      if (company.category) {
-        categories.add(company.category);
-      }
-      if (company.businessCategory) {
-        categories.add(company.businessCategory);
-      }
-      if (company.industry) {
-        categories.add(company.industry);
-      }
-    });
-    return Array.from(categories).sort();
+    return availableCategories;
   };
 
   
@@ -139,6 +125,20 @@ const Dashboard = () => {
     if (savedCities) {
       setCustomCities(JSON.parse(savedCities));
     }
+  }, []);
+
+  // Fetch available categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/categories');
+        const categories = await response.json();
+        setAvailableCategories(categories);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    fetchCategories();
   }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
