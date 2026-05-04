@@ -38,6 +38,16 @@ const userSchema = new mongoose.Schema({
   },
   lastLogin: {
     type: Date
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  permissions: {
+    canManageUsers: { type: Boolean, default: false },
+    canViewAnalytics: { type: Boolean, default: false },
+    canManageSettings: { type: Boolean, default: false },
+    canAccessScraper: { type: Boolean, default: true }
   }
 });
 

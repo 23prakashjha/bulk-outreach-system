@@ -16,6 +16,7 @@ import GoogleMapsScraper from './pages/GoogleMapsScraper';
 import JustdialScraper from './pages/JustdialScraper';
 import Categories from './pages/Categories';
 import CompanyList from './pages/CompanyList';
+import AdminDashboard from './pages/AdminDashboard';
 
 function AppContent() {
   const [isNavigating, setIsNavigating] = useState(false);
@@ -72,6 +73,11 @@ function AppContent() {
         } />
         
         {/* Admin only pages */}
+        <Route path="/admin-dashboard" element={
+          <ProtectedRoute requiredRole="admin">
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
         <Route path="/individual" element={
           <ProtectedRoute requiredRole="admin">
             <IndividualMessage />

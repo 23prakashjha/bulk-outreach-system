@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { authRateLimit, logLogin } = require('../middleware/auth');
 const router = express.Router();
 
 // JWT Secret (should be in .env file)
@@ -90,7 +91,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // Login route
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -104,14 +105,24 @@ router.post('/login', async (req, res) => {
     // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
+      await logLogin({ _id: 'unknown', email }, req, false);
       return res.status(401).json({ 
         message: 'Invalid email or password' 
+      });
+    }
+
+    // Check if user is active
+    if (user.isActive === false) {
+      await logLogin(user, req, false);
+      return res.status(403).json({ 
+        message: 'Account has been deactivated' 
       });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      await logLogin(user, req, false);
       return res.status(401).json({ 
         message: 'Invalid email or password' 
       });
@@ -120,6 +131,9 @@ router.post('/login', async (req, res) => {
     // Update last login
     user.lastLogin = new Date();
     await user.save();
+
+    // Log successful login
+    await logLogin(user, req, true);
 
     // Generate token
     const token = generateToken(user);
