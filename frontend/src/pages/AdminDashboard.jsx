@@ -23,7 +23,6 @@ const AdminDashboard = () => {
     email: '',
     password: '',
     role: 'user',
-    companyName: '',
     isActive: true
   });
 
@@ -135,7 +134,6 @@ const AdminDashboard = () => {
       email: '',
       password: '',
       role: 'user',
-      companyName: '',
       isActive: true
     });
   };
@@ -148,7 +146,6 @@ const AdminDashboard = () => {
       email: user.email,
       password: '',
       role: user.role,
-      companyName: user.companyName || '',
       isActive: user.isActive !== false
     });
     setShowEditModal(true);
@@ -298,9 +295,6 @@ const AdminDashboard = () => {
                     <div>
                       <div className="text-sm font-medium text-gray-900">{user.username}</div>
                       <div className="text-sm text-gray-500">{user.email}</div>
-                      {user.companyName && (
-                        <div className="text-xs text-gray-400">{user.companyName}</div>
-                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -479,20 +473,6 @@ const AdminDashboard = () => {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              {formData.role === 'admin' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
               {selectedUser && (
                 <div className="mb-4">
                   <label className="flex items-center">

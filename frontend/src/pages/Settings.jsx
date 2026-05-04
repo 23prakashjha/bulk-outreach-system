@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { Building, User, Mail, Settings as SettingsIcon, Shield, CheckCircle, Edit2, Save, X } from 'lucide-react';
+import { User, Mail, Settings as SettingsIcon, Shield, CheckCircle, Edit2, Save, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Settings = () => {
   const { user } = useAuth();
   
   const [settings, setSettings] = useState({
-    companyName: user?.companyName || '',
     adminName: user?.username || '',
     adminEmail: user?.email || '',
     defaultCommunicationType: 'all',
@@ -20,7 +19,6 @@ const Settings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [editMode, setEditMode] = useState({
-    companyName: false,
     adminName: false,
     adminEmail: false
   });
@@ -31,7 +29,6 @@ const Settings = () => {
     if (user) {
       setSettings(prev => ({
         ...prev,
-        companyName: user.companyName || '',
         adminName: user.username || '',
         adminEmail: user.email || ''
       }));
@@ -96,52 +93,6 @@ const Settings = () => {
         </div>
         
         <div className="space-y-6">
-          {/* Company Name */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Building className="h-5 w-5 text-blue-600" />
-                <label className="text-sm font-semibold text-gray-700">
-                  Company Name
-                </label>
-              </div>
-              {!editMode.companyName && (
-                <button
-                  onClick={() => handleEdit('companyName')}
-                  className="text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            {editMode.companyName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tempValues.companyName || settings.companyName}
-                  onChange={(e) => handleTempChange('companyName', e.target.value)}
-                  className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={() => handleSaveField('companyName')}
-                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Save className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleCancelEdit('companyName')}
-                  className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-medium text-gray-900">{settings.companyName}</p>
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              </div>
-            )}
-          </div>
 
           {/* Admin Name */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">

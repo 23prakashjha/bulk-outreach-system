@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, Mail, Lock, AlertCircle, Sparkles, ArrowRight, Shield, Building } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Sparkles, ArrowRight, Shield } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    isAdmin: false,
-    companyName: ''
+    isAdmin: false
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -163,27 +162,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Company Name Field - Only shown for admin login */}
-            {formData.isAdmin && (
-              <div className="relative group">
-                <label htmlFor="companyName" className="block text-sm font-medium text-purple-200 mb-2">
-                  Company Name
-                </label>
-                <div className="relative">
-                  <Building className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-purple-400 group-focus-within:text-purple-300 transition-colors" />
-                  <input
-                    id="companyName"
-                    name="companyName"
-                    type="text"
-                    required={formData.isAdmin}
-                    className="block w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-md border border-purple-400/30 text-white placeholder-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 group-hover:bg-white/15"
-                    placeholder="Enter your company name"
-                    value={formData.companyName}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            )}
 
           </div>
 
