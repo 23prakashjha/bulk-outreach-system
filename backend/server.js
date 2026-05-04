@@ -4478,7 +4478,9 @@ async function extractBusinessesEnhanced(page) {
         }
         
         if (!name || name.length < 2) continue;
-        if (name.includes('Sponsored') || name.includes('Ad') || name === 'Rating' || name === 'Hours' || name === 'All filters') continue;
+        if (name.includes('Sponsored') || name.includes('Ad') || name === 'Rating' || name === 'Hours' || name === 'All filters' || 
+            name.includes('Rating') || name.includes('Hours') || name.includes('All filters') ||
+            name.match(/^(Rating|Hours|All filters)$/i)) continue;
         
         const nameKey = name.toLowerCase().trim();
         if (seenInThisRound.has(nameKey)) continue;
