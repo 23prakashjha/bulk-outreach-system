@@ -655,23 +655,25 @@ function JustdialScraper() {
       {/* Bulk Scraping Progress */}
       {bulkLoading && (
         <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50 overflow-hidden">
-          <div className="text-center mb-6">
-            <div className="relative inline-flex items-center justify-center">
+          <div className="flex items-center justify-center gap-6 mb-6">
+            <div className="relative">
               <div className="w-16 h-16 border-4 border-green-200 rounded-full animate-spin border-t-green-600"></div>
               <div className="absolute inset-0 w-16 h-16 border-4 border-transparent rounded-full animate-spin border-b-emerald-600"></div>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mt-4 mb-2">Bulk Scraping in Progress</h3>
-            <p className="text-gray-600">Extracting 250-350 unique businesses targeting 100+ from Justdial...</p>
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Bulk Scraping in Progress</h3>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <span className="text-4xl font-bold text-green-600">{bulkProgress.current}</span>
+                <span className="text-gray-500 text-2xl">/</span>
+                <span className="text-2xl text-gray-600">{bulkProgress.target}</span>
+                <span className="text-sm text-gray-500 ml-1">businesses</span>
+              </div>
+              <p className="text-gray-600">Extracting unique businesses from Justdial...</p>
+            </div>
           </div>
           
-          {/* Progress Bar */}
+          {/* Enhanced Progress Bar */}
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-700">Progress</span>
-              <span className="text-sm font-medium text-gray-700">
-                {bulkProgress.current} / {bulkProgress.target} businesses ({bulkProgress.percentage.toFixed(1)}%)
-              </span>
-            </div>
             <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
               <div 
                 className="bg-gradient-to-r from-green-500 to-emerald-600 h-4 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
@@ -680,37 +682,52 @@ function JustdialScraper() {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
               </div>
             </div>
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-sm font-medium text-gray-700">Progress: {bulkProgress.percentage.toFixed(1)}%</span>
+              <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full capitalize">
+                {bulkProgress.status}
+              </span>
+            </div>
           </div>
           
-          {/* Status Information */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+          {/* Enhanced Status Information */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center mb-6">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-200">
-              <div className="text-2xl font-bold text-blue-900">{bulkProgress.current}</div>
-              <div className="text-sm text-gray-600">Unique Businesses</div>
+              <div className="text-3xl font-bold text-blue-900">{bulkProgress.current}</div>
+              <div className="text-sm text-gray-600">Businesses Found</div>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-200">
-              <div className="text-2xl font-bold text-purple-900">{bulkProgress.page}</div>
+              <div className="text-3xl font-bold text-purple-900">{bulkProgress.page || 0}</div>
               <div className="text-sm text-gray-600">Pages Processed</div>
             </div>
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4 border border-green-200">
-              <div className="text-2xl font-bold text-green-900 capitalize">{bulkProgress.status}</div>
-              <div className="text-sm text-gray-600">Current Status</div>
+              <div className="text-3xl font-bold text-green-900">{Math.round(bulkProgress.percentage)}%</div>
+              <div className="text-sm text-gray-600">Completion</div>
             </div>
           </div>
           
-          {/* Status Messages */}
-          <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+          {/* Enhanced Status Messages */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
             <div className="flex items-center">
               <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse mr-3"></div>
               <span className="text-sm text-blue-800">
                 {bulkProgress.status === 'starting' && 'Initializing bulk scraper...'}
-                {bulkProgress.status === 'processing' && `Processing page ${bulkProgress.page}...`}
+                {bulkProgress.status === 'processing' && `Processing page ${bulkProgress.page || 1}... Found ${bulkProgress.current} businesses so far`}
                 {bulkProgress.status === 'completed' && 'Bulk scraping completed successfully!'}
                 {bulkProgress.status === 'error' && 'An error occurred during bulk scraping.'}
-                {!['starting', 'processing', 'completed', 'error'].includes(bulkProgress.status) && 'Working...'}
+                {!['starting', 'processing', 'completed', 'error'].includes(bulkProgress.status) && `Working... Found ${bulkProgress.current} businesses`}
               </span>
             </div>
           </div>
+          
+          {/* Target Achievement Alert */}
+          {bulkProgress.current >= 100 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+              <p className="text-green-700 text-sm text-center font-medium">
+                🎯 Target reached! Successfully extracted {bulkProgress.current} unique businesses!
+              </p>
+            </div>
+          )}
         </div>
       )}
 

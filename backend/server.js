@@ -1068,6 +1068,18 @@ class BulkJustdialScraper extends JustdialScraper {
         allBusinesses.push(...businesses);
         console.log(`📈 Total businesses: ${allBusinesses.length}`);
         
+        // Send progress update after extracting businesses from this page
+        if (this.progressCallback) {
+          this.progressCallback({
+            current: allBusinesses.length,
+            target: this.minCount,
+            percentage: Math.min((allBusinesses.length / this.minCount) * 100, 100),
+            page: currentPage,
+            status: 'processing',
+            message: `Found ${businesses.length} businesses on page ${currentPage}, total: ${allBusinesses.length}`
+          });
+        }
+        
         consecutiveErrors = 0;
         
         if (allBusinesses.length >= this.maxCount) {
@@ -4181,7 +4193,7 @@ app.post('/api/export/csv', async (req, res) => {
 
 // ============= CORRECTED GOOGLE MAPS SCRAPER =============
 
-// Google Maps scrape endpoint
+// Google Maps scrape endpoint with real-time progress
 app.post('/api/google-maps-scrape', async (req, res) => {
   const { url } = req.body;
   
@@ -4260,6 +4272,159 @@ app.post('/api/google-maps-scrape', async (req, res) => {
     }
     
     res.status(500).json({ error: 'Scraping failed: ' + error.message });
+  }
+});
+
+// Google Maps scrape endpoint with SSE for real-time progress
+app.post('/api/google-maps-scrape-progress', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url || !url.includes('google.com/maps')) {
+    return res.status(400).json({ error: 'Invalid Google Maps URL' });
+  }
+  
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  
+  const progressCallback = (progress) => {
+    try {
+      const sanitizedProgress = sanitizeForSSE(progress);
+      const jsonData = JSON.stringify(sanitizedProgress);
+      
+      if (jsonData && jsonData.startsWith('{') && jsonData.endsWith('}')) {
+        res.write(`data: ${jsonData}\n\n`);
+      } else {
+        console.error('Invalid JSON data for SSE, skipping:', sanitizedProgress);
+      }
+    } catch (error) {
+      console.error('Error in progress callback:', error);
+      res.write(`data: ${JSON.stringify({
+        status: 'error',
+        message: 'Progress update failed',
+        timestamp: Date.now()
+      })}\n\n`);
+    }
+  };
+  
+  try {
+    console.log(`\n🚀 Starting Google Maps scrape request for: ${url}`);
+    
+    progressCallback({
+      current: 0,
+      target: 200,
+      percentage: 0,
+      status: 'starting',
+      message: 'Initializing browser...'
+    });
+    
+    const browser = await puppeteer.launch({
+      headless: false,
+      executablePath: puppeteer.executablePath(),
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--window-size=1920,1080'
+      ]
+    });
+    
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1920, height: 1080 });
+    
+    progressCallback({
+      current: 0,
+      target: 200,
+      percentage: 0,
+      status: 'loading',
+      message: 'Loading Google Maps page...'
+    });
+    
+    console.log('Loading Google Maps page...');
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
+    
+    progressCallback({
+      current: 0,
+      target: 200,
+      percentage: 0,
+      status: 'extracting',
+      message: 'Page loaded, starting data extraction...'
+    });
+    
+    // Wait for the results panel to load
+    await page.waitForSelector('[role="feed"]', { timeout: 30000 });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // Click on the results panel to focus
+    await page.click('[role="feed"]');
+    
+    console.log('Starting enhanced scraping with progress...');
+    const results = await scrapeAllDataEnhancedWithProgress(page, progressCallback);
+
+    await browser.close();
+    
+    // Save to history
+    try {
+      const historyEntry = new GoogleMapsHistory({
+        url,
+        businessCount: results.length,
+        data: results,
+        status: 'completed',
+        scrapeDate: new Date()
+      });
+      
+      await historyEntry.save();
+      console.log(`Successfully saved ${results.length} businesses to history`);
+    } catch (historyError) {
+      console.error('Failed to save to history:', historyError);
+    }
+    
+    const finalData = {
+      success: true, 
+      data: results, 
+      count: results.length,
+      message: `Successfully extracted ${results.length} businesses`,
+      finished: true 
+    };
+    
+    const sanitizedFinalData = sanitizeForSSE(finalData);
+    res.write(`data: ${JSON.stringify(sanitizedFinalData)}\n\n`);
+    res.end();
+    
+  } catch (error) {
+    console.error('Google Maps scraping error:', error);
+    
+    try {
+      const historyEntry = new GoogleMapsHistory({
+        url,
+        businessCount: 0,
+        data: [],
+        status: 'failed',
+        errorMessage: error.message,
+        scrapeDate: new Date()
+      });
+      await historyEntry.save();
+    } catch (historyError) {
+      console.error('Failed to save failed attempt:', historyError);
+    }
+    
+    const errorData = {
+      success: false,
+      error: 'Scraping failed: ' + error.message,
+      finished: true,
+      count: 0
+    };
+    
+    const sanitizedErrorData = sanitizeForSSE(errorData);
+    res.write(`data: ${JSON.stringify(sanitizedErrorData)}\n\n`);
+    res.end();
   }
 });
 
@@ -4388,6 +4553,187 @@ async function scrapeAllDataEnhanced(page) {
   console.log(`\n========== SCRAPING COMPLETE ==========`);
   console.log(`✅ Total businesses scraped: ${allResults.size}`);
   console.log(`📊 Total scroll attempts: ${scrollAttempts}`);
+  
+  if (allResults.size > 0) {
+    console.log('\n📋 Sample of extracted data (first 5 businesses):');
+    const sample = Array.from(allResults.values()).slice(0, 5);
+    sample.forEach((item, idx) => {
+      console.log(`\n${idx + 1}. ${item.name}`);
+      console.log(`   📍 Address: ${item.address.substring(0, 100)}...`);
+      console.log(`   📞 Phone: ${item.phone}`);
+      console.log(`   🌐 Website: ${item.website}`);
+      console.log(`   ⭐ Rating: ${item.rating}`);
+      console.log(`   🏷️ Category: ${item.category}`);
+    });
+  }
+  
+  return Array.from(allResults.values());
+}
+
+// Enhanced scraping function with real-time progress tracking
+async function scrapeAllDataEnhancedWithProgress(page, progressCallback) {
+  const allResults = new Map();
+  const seenNames = new Set();
+  
+  console.log('Starting enhanced extraction with progress...');
+  
+  let scrollAttempts = 0;
+  const maxScrollAttempts = 30;
+  let lastCount = 0;
+  let stagnantCount = 0;
+  let noNewDataCount = 0;
+  
+  // Function to scroll the feed container
+  async function scrollFeedContainer() {
+    return await page.evaluate(() => {
+      const scrollableDiv = document.querySelector('[role="feed"]');
+      if (scrollableDiv) {
+        const previousHeight = scrollableDiv.scrollHeight;
+        scrollableDiv.scrollTop = scrollableDiv.scrollHeight;
+        return previousHeight;
+      }
+      return 0;
+    });
+  }
+  
+  // Function to click "More results" button if present
+  async function clickMoreResultsButton() {
+    return await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button, div[role="button"]');
+      for (const btn of buttons) {
+        const text = btn.textContent?.toLowerCase() || '';
+        const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+        
+        if (text.includes('more results') || 
+            ariaLabel.includes('more results') ||
+            text.includes('see more') ||
+            ariaLabel.includes('see more') ||
+            text.includes('load more') ||
+            (text.includes('more') && text.length < 20)) {
+          btn.click();
+          console.log('Clicked "More results" button');
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+  
+  while (scrollAttempts < maxScrollAttempts && allResults.size < 500) {
+    console.log(`\n--- Scroll Attempt ${scrollAttempts + 1}/${maxScrollAttempts} ---`);
+    console.log(`Current businesses: ${allResults.size}`);
+    
+    // Send progress update
+    progressCallback({
+      current: allResults.size,
+      target: 200,
+      percentage: Math.min((allResults.size / 200) * 100, 100),
+      status: 'scraping',
+      message: `Scraping... Found ${allResults.size} businesses (Scroll ${scrollAttempts + 1}/${maxScrollAttempts})`
+    });
+    
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const extracted = await extractBusinessesEnhanced(page);
+    
+    let newItems = 0;
+    extracted.forEach(item => {
+      const key = item.name.toLowerCase().trim();
+      if (!seenNames.has(key) && item.name !== 'Address not found' && item.name.length > 2) {
+        seenNames.add(key);
+        allResults.set(key, item);
+        newItems++;
+      }
+    });
+    
+    console.log(`Found ${extracted.length} businesses, ${newItems} new. Total: ${allResults.size}`);
+    
+    if (allResults.size === lastCount) {
+      stagnantCount++;
+      noNewDataCount++;
+      console.log(`No new businesses. Stagnant: ${stagnantCount}/8, No new data: ${noNewDataCount}/5`);
+    } else {
+      stagnantCount = 0;
+      noNewDataCount = 0;
+      lastCount = allResults.size;
+    }
+    
+    if (allResults.size >= 400) {
+      console.log(`✅ Reached target of ${allResults.size} businesses!`);
+      progressCallback({
+        current: allResults.size,
+        target: 200,
+        percentage: 100,
+        status: 'completed',
+        message: `Target reached! Found ${allResults.size} businesses!`
+      });
+      break;
+    }
+    
+    if (stagnantCount >= 8) {
+      console.log(`⚠️ No new businesses after ${stagnantCount} attempts. Checking for "More results" button...`);
+      
+      const clicked = await clickMoreResultsButton();
+      if (clicked) {
+        console.log('Clicked "More results" button, waiting for new content...');
+        progressCallback({
+          current: allResults.size,
+          target: 200,
+          percentage: Math.min((allResults.size / 200) * 100, 100),
+          status: 'scraping',
+          message: `Loading more results... Found ${allResults.size} businesses`
+        });
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        stagnantCount = 0;
+        noNewDataCount = 0;
+      } else {
+        if (noNewDataCount >= 5) {
+          console.log(`❌ No more results available. Stopping.`);
+          progressCallback({
+            current: allResults.size,
+            target: 200,
+            percentage: Math.min((allResults.size / 200) * 100, 100),
+            status: 'completed',
+            message: `Scraping complete! Found ${allResults.size} businesses`
+          });
+          break;
+        }
+      }
+    }
+    
+    const previousHeight = await scrollFeedContainer();
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const newHeight = await page.evaluate(() => {
+      const div = document.querySelector('[role="feed"]');
+      return div ? div.scrollHeight : 0;
+    });
+    
+    if (newHeight === previousHeight && scrollAttempts > 10) {
+      console.log('No new content loaded from scroll');
+      stagnantCount++;
+    }
+    
+    await page.evaluate(() => {
+      window.scrollBy(0, 500);
+    });
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    scrollAttempts++;
+  }
+  
+  console.log(`\n========== SCRAPING COMPLETE ==========`);
+  console.log(`✅ Total businesses scraped: ${allResults.size}`);
+  console.log(`📊 Total scroll attempts: ${scrollAttempts}`);
+  
+  // Final progress update
+  progressCallback({
+    current: allResults.size,
+    target: 200,
+    percentage: Math.min((allResults.size / 200) * 100, 100),
+    status: 'finalizing',
+    message: `Finalizing data... Found ${allResults.size} businesses`
+  });
   
   if (allResults.size > 0) {
     console.log('\n📋 Sample of extracted data (first 5 businesses):');

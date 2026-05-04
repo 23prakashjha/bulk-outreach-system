@@ -15,6 +15,11 @@ function GoogleMapsScraper() {
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [currentBusinessCount, setCurrentBusinessCount] = useState(0)
+  const [targetBusinessCount, setTargetBusinessCount] = useState(200)
+  const [scrapingPercentage, setScrapingPercentage] = useState(0)
+  const [scrapingStatus, setScrapingStatus] = useState('')
+  const [eventSource, setEventSource] = useState(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -23,8 +28,14 @@ function GoogleMapsScraper() {
       }
     }, 2000) // Increased delay to prevent auto-trigger during navigation
     
-    return () => clearTimeout(timer)
-  }, [url])
+    return () => {
+      clearTimeout(timer)
+      // Clean up EventSource if component unmounts
+      if (eventSource) {
+        eventSource.close()
+      }
+    }
+  }, [url, eventSource])
 
   const handleScrape = async () => {
     if (!url.trim()) {
@@ -41,28 +52,83 @@ function GoogleMapsScraper() {
     setScraping(true)
     setError('')
     setData([])
-    setProgress('Loading page...')
+    setProgress('Initializing...')
+    setCurrentBusinessCount(0)
+    setScrapingPercentage(0)
+    setScrapingStatus('starting')
+    
+    // Close any existing event source
+    if (eventSource) {
+      eventSource.close()
+    }
     
     try {
-      const response = await axios.post('/api/google-maps-scrape', { url }, {
-        timeout: 300000
+      // Use SSE for real-time progress
+      const response = await fetch('/api/google-maps-scrape-progress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url })
       })
       
-      const responseData = response.data?.data || []
-      setData(responseData)
-      setCount(response.data?.count || responseData.length)
-      setProgress('')
-      setHasScraped(true)
+      if (!response.ok) {
+        throw new Error('Failed to start scraping')
+      }
       
-      if (responseData.length === 0) {
-        setError('No business data found. Try a different URL.')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.finished) {
+                if (data.success) {
+                  setData(data.data || [])
+                  setCount(data.count || 0)
+                  setProgress('')
+                  setHasScraped(true)
+                  setScraping(false)
+                  setLoading(false)
+                  
+                  if (data.data?.length === 0) {
+                    setError('No business data found. Try a different URL.')
+                  }
+                } else {
+                  setError(data.error || 'Failed to scrape data. Please try again.')
+                  setProgress('')
+                  setScraping(false)
+                  setLoading(false)
+                }
+                break
+              } else {
+                // Update progress
+                setCurrentBusinessCount(data.current || 0)
+                setTargetBusinessCount(data.target || 200)
+                setScrapingPercentage(data.percentage || 0)
+                setScrapingStatus(data.status || '')
+                setProgress(data.message || 'Scraping...')
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError)
+            }
+          }
+        }
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to scrape data. Please try again.')
+      setError(err.response?.data?.error || err.message || 'Failed to scrape data. Please try again.')
       setProgress('')
-    } finally {
-      setLoading(false)
       setScraping(false)
+      setLoading(false)
     }
   }
 
@@ -287,14 +353,38 @@ function GoogleMapsScraper() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
-              <span className="text-blue-600 text-lg font-medium">{progress || 'Scraping...'}</span>
+              <div className="text-center">
+                <span className="text-blue-600 text-lg font-medium block">{progress || 'Scraping...'}</span>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <span className="text-3xl font-bold text-green-600">{currentBusinessCount}</span>
+                  <span className="text-gray-500 text-lg">/</span>
+                  <span className="text-xl text-gray-600">{targetBusinessCount}</span>
+                  <span className="text-sm text-gray-500 ml-1">businesses</span>
+                </div>
+              </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300 ease-out" 
+                style={{ width: `${scrapingPercentage}%` }}
+              ></div>
             </div>
-            <p className="text-gray-600 text-sm text-center mt-4">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-xs text-gray-500">Progress: {scrapingPercentage.toFixed(1)}%</span>
+              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                {scrapingStatus}
+              </span>
+            </div>
+            <p className="text-gray-600 text-sm text-center">
               Continuously scrolling and extracting all available business data...
             </p>
+            {currentBusinessCount >= 200 && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-700 text-sm text-center font-medium">
+                  🎯 Target reached! Successfully extracted {currentBusinessCount} businesses!
+                </p>
+              </div>
+            )}
           </div>
         )}
 
