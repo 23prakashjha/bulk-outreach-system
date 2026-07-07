@@ -64,6 +64,11 @@ class WhatsAppService {
   }
 
   formatPhoneNumber(phoneNumber) {
+    if (phoneNumber.startsWith('+')) {
+      let cleaned = phoneNumber.replace(/\D/g, '');
+      return '+' + cleaned;
+    }
+
     let cleaned = phoneNumber.replace(/\D/g, '');
 
     if (!cleaned.startsWith('1') && cleaned.length === 10) {

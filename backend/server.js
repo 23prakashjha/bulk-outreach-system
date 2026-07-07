@@ -3028,31 +3028,31 @@ app.post('/api/send-bulk-messages', async (req, res) => {
                 let result;
                 
                 if (communicationType === 'email' && company.email) {
-                    result = await EmailService.sendEmail(
+                    result = await emailService.sendEmail(
                         company.email,
                         'Message from Contact Form',
                         message
                     );
                 } else if (communicationType === 'sms' && company.phone) {
-                    result = await SMSService.sendSMS(company.phone, message);
+                    result = await smsService.sendSMS(company.phone, message);
                 } else if (communicationType === 'whatsapp' && company.phone) {
-                    result = await WhatsAppService.sendWhatsApp(company.phone, message);
+                    result = await whatsappService.sendWhatsApp(company.phone, message);
                 } else if (communicationType === 'all' && company.phone) {
-                    const smsResult = await SMSService.sendSMS(company.phone, message);
-                    const whatsappResult = await WhatsAppService.sendWhatsApp(company.phone, message);
+                    const smsResult = await smsService.sendSMS(company.phone, message);
+                    const whatsappResult = await whatsappService.sendWhatsApp(company.phone, message);
                     result = { sms: smsResult, whatsapp: whatsappResult };
                 } else if (communicationType === 'all_channels') {
                     const results = {};
                     if (company.email) {
-                        results.email = await EmailService.sendEmail(
+                        results.email = await emailService.sendEmail(
                             company.email,
                             'Message from Contact Form',
                             message
                         );
                     }
                     if (company.phone) {
-                        results.sms = await SMSService.sendSMS(company.phone, message);
-                        results.whatsapp = await WhatsAppService.sendWhatsApp(company.phone, message);
+                        results.sms = await smsService.sendSMS(company.phone, message);
+                        results.whatsapp = await whatsappService.sendWhatsApp(company.phone, message);
                     }
                     result = results;
                 }
@@ -3166,12 +3166,95 @@ app.post('/api/send-messages', async (req, res) => {
         }
         
         res.json({ 
+            success: true,
             message: 'Messages processed successfully',
             count: companies.length
         });
     } catch (error) {
         console.error('Send messages error:', error);
         res.status(500).json({ error: 'Error sending messages' });
+    }
+});
+
+app.post('/api/send-message', async (req, res) => {
+    try {
+        const { companyId, communicationType } = req.body;
+
+        if (!companyId) {
+            return res.status(400).json({ error: 'Company ID is required' });
+        }
+
+        const company = await Company.findById(companyId);
+
+        if (!company) {
+            return res.status(404).json({ error: 'Company not found' });
+        }
+
+        let success = true;
+        let error = null;
+
+        try {
+            if (communicationType === 'all' || communicationType === 'email') {
+                if (company.email) {
+                    const emailResult = await emailService.sendEmail(
+                        company.email,
+                        `Business Outreach - ${company.company}`,
+                        company.message
+                    );
+                    if (!emailResult.success) {
+                        success = false;
+                        error = `Email failed: ${emailResult.error}`;
+                    }
+                }
+            }
+
+            if (communicationType === 'all' || communicationType === 'whatsapp') {
+                if (whatsappService.isValidPhoneNumber(company.phone)) {
+                    const whatsappResult = await whatsappService.sendWhatsAppMessage(
+                        company.phone,
+                        company.message
+                    );
+                    if (!whatsappResult.success) {
+                        success = false;
+                        error = `WhatsApp failed: ${whatsappResult.error}`;
+                    }
+                }
+            }
+
+            if (communicationType === 'all' || communicationType === 'sms') {
+                if (smsService.isValidPhoneNumber(company.phone)) {
+                    const smsResult = await smsService.sendSMS(
+                        company.phone,
+                        company.message
+                    );
+                    if (!smsResult.success) {
+                        success = false;
+                        error = `SMS failed: ${smsResult.error}`;
+                    }
+                }
+            }
+        } catch (err) {
+            success = false;
+            error = err.message;
+        }
+
+        company.status = success ? 'sent' : 'failed';
+        company.communicationType = communicationType;
+        company.updatedAt = new Date();
+        if (error) {
+            company.errorMessage = error;
+        }
+        await company.save();
+
+        res.json({
+            success,
+            message: success ? 'Message sent successfully' : 'Message failed to send',
+            error,
+            status: company.status
+        });
+    } catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({ error: 'Error sending message' });
     }
 });
 
@@ -3182,6 +3265,12 @@ app.post('/api/send-individual-message', async (req, res) => {
         if (!phone || !message) {
             return res.status(400).json({ 
                 error: 'Phone number and message are required' 
+            });
+        }
+
+        if (!communicationType) {
+            return res.status(400).json({
+                error: 'Communication type is required (sms, whatsapp, all, etc.)'
             });
         }
 
