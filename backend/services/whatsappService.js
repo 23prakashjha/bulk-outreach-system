@@ -6,11 +6,11 @@ class WhatsAppService {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     this.fromWhatsAppNumber = process.env.TWILIO_PHONE_NUMBER;
 
-    if (accountSid && authToken && this.fromWhatsAppNumber) {
+    if (accountSid && accountSid.startsWith('AC') && authToken && authToken !== 'your_twilio_auth_token' && this.fromWhatsAppNumber && !this.fromWhatsAppNumber.includes('your_')) {
       this.client = twilio(accountSid, authToken);
       console.log('WhatsApp service initialized successfully');
     } else {
-      console.warn('WhatsApp service disabled - missing Twilio credentials in .env');
+      console.warn('WhatsApp service disabled - Twilio credentials not configured properly in .env');
       this.client = null;
     }
   }

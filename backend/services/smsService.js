@@ -6,11 +6,11 @@ class SMSService {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     this.fromPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-    if (accountSid && authToken && this.fromPhoneNumber) {
+    if (accountSid && accountSid.startsWith('AC') && authToken && authToken !== 'your_twilio_auth_token' && this.fromPhoneNumber && !this.fromPhoneNumber.includes('your_')) {
       this.client = twilio(accountSid, authToken);
       console.log('SMS service initialized successfully');
     } else {
-      console.warn('SMS service disabled - missing Twilio credentials in .env');
+      console.warn('SMS service disabled - Twilio credentials not configured properly in .env');
       this.client = null;
     }
   }
