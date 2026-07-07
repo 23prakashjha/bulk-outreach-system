@@ -29,6 +29,7 @@
     "pdf-parse": "^2.4.5",
     "puppeteer": "^24.41.0",
     "puppeteer-core": "^24.41.0",
+    "twilio": "^6.0.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
